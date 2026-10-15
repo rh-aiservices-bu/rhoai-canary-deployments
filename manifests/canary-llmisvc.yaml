@@ -1,0 +1,51 @@
+# Example: canary LLMInferenceService (PHI-4 on vLLM v0.28.0)
+# Key differences from the original:
+#   - Different CR name (append -canary)
+#   - Same spec.model.name as the original (so it accepts the same requests)
+#   - spec.template.containers[0].image set to the new runtime image
+#   - Gateway ref is present initially so the controller creates the InferencePool,
+#     then removed once the pool is ready (see README Stage 1).
+#
+# Replace name, namespace, hardware profile, model URI, image, and resource values for your deployment.
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  annotations:
+    opendatahub.io/hardware-profile-name: gpu-profile
+    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/model-type: generative
+    openshift.io/display-name: RedHatAI/phi-4-FP8-dynamic
+    serving.kserve.io/stop: 'false'
+  name: redhataiphi-4-fp8-dynamic-canary
+  namespace: runtime-swap
+  finalizers:
+    - serving.kserve.io/llmisvc-finalizer
+  labels:
+    opendatahub.io/dashboard: 'true'
+    opendatahub.io/genai-asset: 'true'
+spec:
+  model:
+    # Must match the original's model name so the canary accepts the same requests
+    name: redhataiphi-4-fp8-dynamic
+    uri: 'oci://registry.redhat.io/rhelai1/modelcar-phi-4-fp8-dynamic:1.5'
+  replicas: 1
+  router:
+    gateway:
+      refs:
+        - name: maas-default-gateway
+          namespace: openshift-ingress
+    route: {}
+    scheduler: {}
+  template:
+    containers:
+      - image: 'registry.redhat.io/rhaii-fast/vllm-cuda-rhel9:3.6.0-fast.2'   # new runtime image
+        name: main
+        resources:
+          limits:
+            cpu: '4'
+            memory: 8Gi
+            nvidia.com/gpu: '1'
+          requests:
+            cpu: '4'
+            memory: 8Gi
+            nvidia.com/gpu: '1'
