@@ -4,8 +4,6 @@ A guide to safely rolling out a new model server version in **Red Hat OpenShift 
 
 ## Interactive Diagram
 
-[![Canary deployment walkthrough — stages 3 and 4](demo.gif)](https://rh-aiservices-bu.github.io/rhoai-canary-deployments/)
-
 **[▶ Open interactive walkthrough](https://rh-aiservices-bu.github.io/rhoai-canary-deployments/)** — step through all 5 stages with live animated traffic flows and an adjustable traffic weight slider.
 
 ---
