@@ -157,7 +157,7 @@ Increase the canary weight gradually. Allow at least 10–15 minutes at each sta
 | | 10% | 90% |
 | Full cutover | 0% | 100% |
 
-Use [`scripts/continuous_inference.sh`](scripts/continuous_inference.sh) to send continuous test requests. The `system_fingerprint` field in each response shows which pool served it, making the split visible:
+Use [`scripts/continuous-inference.sh`](scripts/continuous-inference.sh) to send continuous test requests. The `system_fingerprint` field in each response shows which pool served it, making the split visible:
 
 ```
 10:15:13 | vllm-0.24.0+rhaiv.9-71aa6c0c | 200   ← blue pool
@@ -243,7 +243,7 @@ oc patch llminferenceservice <original-llmisvc> -n <namespace> --type=merge \
 |--------|---------|
 | `scripts/set-mirror.sh <llmisvc> [canary-llmisvc]` | Adds a `RequestMirror` filter to the HTTPRoute, sending a copy of every request to the canary pool. Responses are discarded |
 | `scripts/set-canary-weight.sh <llmisvc> [canary-llmisvc]` | Sets the canary traffic weight interactively. Enter `0` for instant rollback, `100` for full cutover |
-| `scripts/continuous_inference.sh` | Sends continuous chat completion requests and prints the vLLM version from each response — for confirming which pool is serving |
+| `scripts/continuous-inference.sh` | Sends continuous chat completion requests and prints the vLLM version from each response — for confirming which pool is serving |
 
 ---
 

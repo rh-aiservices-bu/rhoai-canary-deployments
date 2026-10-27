@@ -6,7 +6,7 @@
 
 TOKEN=""
 MODEL_NAME=""
-URL=""
+URL="" # make sure this doesn't end in '/'
 
 while true; do
   TIME=$(date +"%H:%M:%S")
