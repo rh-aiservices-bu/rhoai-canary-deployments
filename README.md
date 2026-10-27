@@ -2,6 +2,10 @@
 
 A guide to safely rolling out a new model server version in **Red Hat OpenShift AI (RHOAI)** using a canary deployment. Traffic shifts gradually from the old version to the new one, with the ability to roll back instantly at any stage.
 
+## Interactive Diagram
+
+**[▶ Open interactive walkthrough](https://rh-aiservices-bu.github.io/rhoai-canary-deployments/)** — step through all 5 stages with live animated traffic flows and an adjustable traffic weight slider.
+
 ---
 
 

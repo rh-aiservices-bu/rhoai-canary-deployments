@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RHOAI Canary Deployments</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #020617; color: #f1f5f9; min-height: 100vh; display: flex; flex-direction: column; }
+    .header { border-bottom: 1px solid #1e293b; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-size: 17px; font-weight: 700; color: #f1f5f9; display: flex; align-items: baseline; gap: 10px; }
+    .header h1 span { font-size: 12px; font-weight: 400; color: #475569; }
+    .header-tag { font-size: 11px; color: #334155; font-weight: 500; font-family: monospace; }
+    .timeline-wrap { border-bottom: 1px solid #1e293b; padding: 18px 32px 26px; }
+    .timeline { display: flex; align-items: flex-start; max-width: 860px; margin: 0 auto; }
+    .t-step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; cursor: pointer; }
+    .t-step:not(:last-child)::after { content: ''; position: absolute; top: 13px; left: 50%; width: 100%; height: 1px; background: #1e293b; z-index: 0; }
+    .t-dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #1e293b; background: #0f172a; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #475569; position: relative; z-index: 1; transition: all 0.2s; }
+    .t-step.active .t-dot { border-color: #3b82f6; background: #1d4ed8; color: #fff; }
+    .t-step.done .t-dot { border-color: #1e40af; background: #1e3a8a; color: #93c5fd; }
+    .t-label { font-size: 10px; color: #334155; text-align: center; margin-top: 8px; max-width: 80px; line-height: 1.3; transition: color 0.2s; }
+    .t-step.active .t-label { color: #93c5fd; }
+    .t-step.done .t-label { color: #4b6587; }
+    .stage-main { flex: 1; max-width: 1100px; width: 100%; margin: 0 auto; padding: 24px 32px 20px; display: flex; flex-direction: column; gap: 18px; }
+    .stage-header { display: flex; flex-direction: column; gap: 4px; }
+    .stage-header-row { display: flex; align-items: center; gap: 10px; }
+    .stage-badge { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 4px; background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .stage-counter { font-size: 13px; color: #475569; }
+    .stage-title { font-size: 22px; font-weight: 700; color: #f1f5f9; margin-top: 4px; }
+    .stage-subtitle { font-size: 13px; color: #60a5fa; }
+    .diagram-wrap { width: 100%; background: #0a1628; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; }
+    .diagram-wrap svg { display: block; width: 100%; height: auto; transition: opacity 0.35s; }
+    #s5-area { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 20px; }
+    #s5-label { font-size: 12px; color: #60a5fa; font-weight: 500; min-height: 16px; }
+    #s5-btns { display: none; gap: 8px; justify-content: center; }
+    .phase-btn { padding: 5px 14px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid #1e293b; background: #0f172a; color: #64748b; transition: all 0.15s; }
+    .phase-btn:hover { border-color: #334155; color: #94a3b8; }
+    .phase-btn.active { border-color: #3b82f6; background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .desc-row { display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: start; }
+    .desc-text { font-size: 13px; color: #94a3b8; line-height: 1.6; }
+    .bullets-panel { display: flex; flex-direction: column; gap: 8px; }
+    .bullet { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #94a3b8; line-height: 1.5; }
+    .bullet::before { content: ''; flex-shrink: 0; width: 5px; height: 5px; border-radius: 50%; background: #3b82f6; margin-top: 6px; }
+    .slider-panel { margin-top: 14px; padding: 14px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; }
+    .slider-panel label { font-size: 11px; color: #64748b; font-weight: 500; margin-bottom: 8px; display: block; }
+    .weight-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .weight-tag { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+    .weight-tag.blue { background: rgba(59,130,246,0.2); color: #60a5fa; }
+    .weight-tag.amber { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .weight-bar-bg { flex: 1; height: 8px; border-radius: 4px; background: #1e293b; overflow: hidden; }
+    .weight-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(to right, #3b82f6, #f59e0b); transition: width 0.2s; }
+    input[type=range] { width: 100%; accent-color: #3b82f6; cursor: pointer; margin-top: 4px; }
+    .slider-labels { display: flex; justify-content: space-between; font-size: 10px; color: #475569; margin-top: 2px; }
+    .nav-footer { border-top: 1px solid #1e293b; padding: 14px 32px; display: flex; justify-content: space-between; align-items: center; }
+    .nav-btn { padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+    .nav-btn.prev { background: #1e293b; color: #94a3b8; }
+    .nav-btn.prev:hover:not(:disabled) { background: #293548; }
+    .nav-btn.next { background: #2563eb; color: #fff; }
+    .nav-btn.next:hover:not(:disabled) { background: #3b82f6; }
+    .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .nav-hint { font-size: 11px; color: #334155; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <h1>RHOAI Canary Deployments <span>Interactive Walkthrough</span></h1>
+  <div class="header-tag">LLMInferenceService · InferencePool · HTTPRoute</div>
+</header>
+
+<div class="timeline-wrap">
+  <div class="timeline" id="timeline"></div>
+</div>
+
+<main class="stage-main">
+  <div class="stage-header">
+    <div class="stage-header-row">
+      <span class="stage-badge">canary</span>
+      <span class="stage-counter" id="counter">Stage 1 of 5</span>
+    </div>
+    <div class="stage-title" id="stageTitle"></div>
+    <div class="stage-subtitle" id="stageSub"></div>
+  </div>
+
+  <div class="diagram-wrap">
+    <svg id="diagram-svg" viewBox="0 0 960 310" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div id="s5-area">
+    <div id="s5-label"></div>
+    <div id="s5-btns">
+      <button class="phase-btn" id="s5b0" onclick="setS5Phase(0)">① Rolling update</button>
+      <button class="phase-btn" id="s5b1" onclick="setS5Phase(1)">② Reroute traffic</button>
+      <button class="phase-btn" id="s5b2" onclick="setS5Phase(2)">③ Canary deleted</button>
+    </div>
+  </div>
+
+  <div class="desc-row">
+    <p class="desc-text" id="desc"></p>
+    <div class="bullets-panel">
+      <div id="bullets"></div>
+      <div id="slider-wrap" style="display:none">
+        <div class="slider-panel">
+          <label>Traffic weight</label>
+          <div class="weight-row">
+            <span class="weight-tag blue" id="wBlue">90% original</span>
+            <div class="weight-bar-bg"><div class="weight-bar-fill" id="wBar" style="width:10%"></div></div>
+            <span class="weight-tag amber" id="wCanary">10% canary</span>
+          </div>
+          <input type="range" id="wSlider" min="0" max="100" value="10" oninput="onWeightChange(this.value)">
+          <div class="slider-labels"><span>0% canary</span><span>100% canary</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="nav-footer">
+  <button class="nav-btn prev" id="btnPrev" onclick="go(-1)">← Previous</button>
+  <span class="nav-hint" id="navHint"></span>
+  <button class="nav-btn next" id="btnNext" onclick="go(1)">Next →</button>
+</footer>
+
+<script>
+// ─── Layout constants ──────────────────────────────────────────────────────
+// viewBox: 960 × 310
+// Horizontal (aligned to box edges)
+const C_RT  = 125;                      // client right  (cx=75, w=100)
+const CX_G  = 230;
+const G_LT  = 182; const G_RT = 278;   // gateway       (w=96)
+const CX_H  = 415;
+const H_LT  = 355; const H_RT = 475;   // httproute     (w=120)
+const P_LT  = 558;
+const PW    = 238;
+const CX_P  = P_LT + PW / 2;           // 677
+
+// Vertical
+const CY_B  = 108;   // top/blue pool row
+const CY_S  = 168;   // single-pool row; left-nodes row in split stages
+const CY_C  = 252;   // canary pool row
+
+const BOX_H = 52;
+const POOL_H= 56;
+const MX    = 526;   // mirror branch bend x
+
+// ─── SVG defs ─────────────────────────────────────────────────────────────
+function defs() {
+  return `<defs>
+    <marker id="ab" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 Z" fill="#3b82f6"/></marker>
+    <marker id="ag" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 Z" fill="#4ade80"/></marker>
+    <marker id="ap" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 Z" fill="#a78bfa"/></marker>
+    <marker id="aa" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 Z" fill="#f59e0b"/></marker>
+    <marker id="a"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 Z" fill="#475569"/></marker>
+  </defs>`;
+}
+
+// ─── Drawing helpers ──────────────────────────────────────────────────────
+function box(cx, cy, w, label, sublabel, stroke='#3b82f6', fill='#0f172a', h=BOX_H) {
+  const lx=cx-w/2, ly=cy-h/2;
+  return `<rect x="${lx}" y="${ly}" width="${w}" height="${h}" rx="6"
+    fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
+  <text x="${cx}" y="${sublabel?cy-4:cy+4}" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">${label}</text>
+  ${sublabel?`<text x="${cx}" y="${cy+11}" text-anchor="middle" fill="#94a3b8" font-size="9">${sublabel}</text>`:''}`;
+}
+
+function pool(cy, label, sublabel, stroke='#3b82f6', fill='#0f172a') {
+  return box(CX_P, cy, PW, label, sublabel, stroke, fill, POOL_H);
+}
+
+function seg(x1,y1,x2,y2,mkr='ab',sw=1.5,stroke='#334155') {
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<1) return '';
+  const ux=dx/len,uy=dy/len;
+  return `<line x1="${x1}" y1="${y1}" x2="${x2-ux*8}" y2="${y2-uy*8}" stroke="${stroke}" stroke-width="${sw}" marker-end="url(#${mkr})"/>`;
+}
+
+function ln(x1,y1,x2,y2,stroke='#334155',sw=1.5,dash='') {
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${sw}" ${dash?`stroke-dasharray="${dash}"`:''} />`;
+}
+
+function poly(pts,mkr='ab',stroke='#334155',sw=1.5,dash='') {
+  const last=pts[pts.length-1],prev=pts[pts.length-2];
+  const dx=last[0]-prev[0],dy=last[1]-prev[1],len=Math.sqrt(dx*dx+dy*dy);
+  const ux=dx/len,uy=dy/len;
+  const ep=[last[0]-ux*8,last[1]-uy*8];
+  const allPts=[...pts.slice(0,-1),ep].map(p=>p.join(',')).join(' ');
+  return `<polyline points="${allPts}" fill="none" stroke="${stroke}" stroke-width="${sw}" ${dash?`stroke-dasharray="${dash}"`:''} marker-end="url(#${mkr})"/>`;
+}
+
+// ─── Animated circles ─────────────────────────────────────────────────────
+// Forward circles (requests)
+function circs(pathId, dur, color, begins, r=3.5, op=0.88) {
+  return begins.map(b =>
+    `<circle r="${r}" fill="${color}" opacity="${op}">
+      <animateMotion dur="${dur}s" repeatCount="indefinite" begin="${b}s" calcMode="linear">
+        <mpath href="#${pathId}"/>
+      </animateMotion>
+    </circle>`
+  ).join('');
+}
+
+// Reverse circles (responses) — travel the same path backwards
+function circsRev(pathId, dur, color, begins, r=3, op=0.75) {
+  return begins.map(b =>
+    `<circle r="${r}" fill="${color}" opacity="${op}">
+      <animateMotion dur="${dur}s" repeatCount="indefinite" begin="${b}s" calcMode="linear"
+        keyPoints="1;0" keyTimes="0;1">
+        <mpath href="#${pathId}"/>
+      </animateMotion>
+    </circle>`
+  ).join('');
+}
+
+function evenBegins(n, dur) {
+  return Array.from({length:n}, (_,i) => +(i*dur/n).toFixed(2));
+}
+
+function splitBegins(canaryPct, total=10, dur=5) {
+  const step=dur/total, blues=[], cans=[];
+  for(let i=0;i<total;i++){
+    const t=+(i*step).toFixed(2);
+    Math.floor((i+1)*canaryPct/100)>Math.floor(i*canaryPct/100)?cans.push(t):blues.push(t);
+  }
+  return {blues,cans};
+}
+
+// ─── Shared node groups ───────────────────────────────────────────────────
+function leftNodes(cy, hrSub) {
+  return box(75,  cy, 100,'Client',   null,  '#475569') +
+         box(CX_G,cy, 96, 'Gateway',  null,  '#3b82f6') +
+         box(CX_H,cy, 120,'HTTPRoute',hrSub, '#8b5cf6');
+}
+
+function reqLines(cy) {
+  return seg(C_RT,cy,G_LT,cy,'ab',1.5,'#334155') +
+         seg(G_RT,cy,H_LT,cy,'ab',1.5,'#334155') +
+         seg(H_RT,cy,P_LT,cy,'ab',1.5,'#334155');
+}
+
+// Colour legend: blue = requests, green = responses, optional extras [{color,label}]
+function legend(x=14, y=14, extras=[]) {
+  let out = `<circle cx="${x+4}" cy="${y}" r="3.5" fill="#60a5fa" opacity="0.9"/>
+  <text x="${x+12}" y="${y+4}" fill="#60a5fa" font-size="9">requests</text>
+  <circle cx="${x+68}" cy="${y}" r="3" fill="#4ade80" opacity="0.85"/>
+  <text x="${x+76}" y="${y+4}" fill="#4ade80" font-size="9">responses</text>`;
+  let xOff = x + 132;
+  for (const {color, label} of extras) {
+    out += `<circle cx="${xOff+4}" cy="${y}" r="3" fill="${color}" opacity="0.8"/>
+  <text x="${xOff+12}" y="${y+4}" fill="${color}" font-size="9">${label}</text>`;
+    xOff += label.length * 5.5 + 18;
+  }
+  return out;
+}
+
+// ─── Stage SVG generators ─────────────────────────────────────────────────
+
+function svgStage1() {
+  const cy=CY_S;
+  // Single path client → pool; responses travel the same path in reverse
+  const d=`M ${C_RT},${cy} L ${G_LT},${cy} L ${G_RT},${cy} L ${H_LT},${cy} L ${H_RT},${cy} L ${P_LT},${cy}`;
+  const bReq=evenBegins(6,4), bRes=evenBegins(4,4.8);
+  return `${defs()}
+  <path id="p1" d="${d}" fill="none" stroke="none"/>
+  ${reqLines(cy)}
+  ${circs('p1',4,'#60a5fa',bReq)}
+  ${circsRev('p1',4.8,'#4ade80',bRes)}
+  ${leftNodes(cy,'100% → original')}
+  ${pool(cy,'Original InferencePool','model pods · old image')}
+  ${legend()}`;
+}
+
+function svgStage2() {
+  const cy=CY_S, cyC=CY_C;
+  const d=`M ${C_RT},${cy} L ${G_LT},${cy} L ${G_RT},${cy} L ${H_LT},${cy} L ${H_RT},${cy} L ${P_LT},${cy}`;
+  const bReq=evenBegins(6,4), bRes=evenBegins(4,4.8);
+  return `${defs()}
+  <path id="p2" d="${d}" fill="none" stroke="none"/>
+  ${reqLines(cy)}
+  ${circs('p2',4,'#60a5fa',bReq)}
+  ${circsRev('p2',4.8,'#4ade80',bRes)}
+  ${leftNodes(cy,'100% → original')}
+  ${pool(cy,'Original InferencePool','model pods · old image')}
+  ${pool(cyC,'Canary InferencePool','warm · idle · no traffic','#475569')}
+  ${legend()}
+  <text x="${CX_P}" y="${cyC+POOL_H/2+15}" text-anchor="middle" fill="#475569" font-size="10">no HTTPRoute · warming up</text>`;
+}
+
+function svgStage3() {
+  const cy=CY_B, cyC=CY_C;
+  // Main path (request + response — only for the blue pool)
+  const dMain =`M ${C_RT},${cy} L ${G_LT},${cy} L ${G_RT},${cy} L ${H_LT},${cy} L ${H_RT},${cy} L ${P_LT},${cy}`;
+  // Mirror path (request only — responses are discarded)
+  const dMirr =`M ${H_RT},${cy} L ${MX},${cy} L ${MX},${cyC} L ${P_LT},${cyC}`;
+  const bReq=evenBegins(6,4), bRes=evenBegins(4,4.8), bMirr=evenBegins(4,4);
+  return `${defs()}
+  <path id="p3m" d="${dMain}" fill="none" stroke="none"/>
+  <path id="p3s" d="${dMirr}" fill="none" stroke="none"/>
+  ${seg(C_RT,cy,G_LT,cy,'ab',1.5,'#334155')}
+  ${seg(G_RT,cy,H_LT,cy,'ab',1.5,'#334155')}
+  ${seg(H_RT,cy,P_LT,cy,'ab',1.5,'#334155')}
+  ${poly([[H_RT,cy],[MX,cy],[MX,cyC],[P_LT,cyC]],'ap','#7c3aed',1.5,'6,4')}
+  ${circs('p3m',4,'#60a5fa',bReq)}
+  ${circsRev('p3m',4.8,'#4ade80',bRes)}
+  ${circs('p3s',3.5,'#a78bfa',bMirr,3,0.7)}
+  ${box(75,  cy,100,'Client',   null,           '#475569')}
+  ${box(CX_G,cy,96, 'Gateway',  null,           '#3b82f6')}
+  ${box(CX_H,cy,120,'HTTPRoute','mirror active','#8b5cf6')}
+  ${pool(cy, 'Original InferencePool','serves all client requests','#3b82f6')}
+  ${pool(cyC,'Canary InferencePool',  'receives mirror copy',      '#7c3aed')}
+  ${legend(14,14,[{color:'#a78bfa',label:'mirror traffic'}])}
+  <text x="${MX+14}" y="${(cy+cyC)/2+4}" text-anchor="start" fill="#a78bfa" font-size="10">mirror</text>
+  <text x="${CX_P}" y="${cyC+POOL_H/2+15}" text-anchor="middle" fill="#ef4444" font-size="10">✕ response discarded — client never sees this</text>`;
+}
+
+function svgStage4(canaryPct) {
+  if(canaryPct===undefined) canaryPct=_w;
+  const origPct=100-canaryPct, cy=CY_S, cyB=CY_B, cyC=CY_C;
+  // Full paths: client → left nodes → split → each pool
+  const dB=`M ${C_RT},${cy} L ${G_LT},${cy} L ${G_RT},${cy} L ${H_LT},${cy} L ${H_RT},${cy} L ${H_RT},${cyB} L ${P_LT},${cyB}`;
+  const dC=`M ${C_RT},${cy} L ${G_LT},${cy} L ${G_RT},${cy} L ${H_LT},${cy} L ${H_RT},${cy} L ${H_RT},${cyC} L ${P_LT},${cyC}`;
+  const {blues,cans}=splitBegins(canaryPct);
+  const showB=origPct>0, showC=canaryPct>0;
+  const hrSub=origPct>0&&canaryPct>0?`${origPct}% orig · ${canaryPct}% canary`
+             :canaryPct===0?'100% → original':'100% → canary';
+  const blueWY=Math.round((cy+cyB)/2);
+  const canWY =Math.round((cy+cyC)/2);
+  // Response begins offset so they don't always mirror request positions
+  const bBRes=evenBegins(3,5.2), bCRes=evenBegins(3,5.5);
+  return `${defs()}
+  ${showB?`<path id="p4b" d="${dB}" fill="none" stroke="none"/>`:''}
+  ${showC?`<path id="p4c" d="${dC}" fill="none" stroke="none"/>`:''}
+  ${seg(C_RT,cy,G_LT,cy,'ab',1.5,'#334155')}
+  ${seg(G_RT,cy,H_LT,cy,'ab',1.5,'#334155')}
+  ${showB?poly([[H_RT,cy],[H_RT,cyB],[P_LT,cyB]],'ab','#334155',1.5):''}
+  ${showC?poly([[H_RT,cy],[H_RT,cyC],[P_LT,cyC]],'aa','#334155',1.5):''}
+  ${showB?circs('p4b',5,'#60a5fa',blues):''}
+  ${showC?circs('p4c',5,'#fbbf24',cans):''}
+  ${showB?circsRev('p4b',5.2,'#4ade80',bBRes):''}
+  ${showC?circsRev('p4c',5.5,'#4ade80',bCRes):''}
+  ${box(75, cy,100,'Client',    null,  '#475569')}
+  ${box(CX_G,cy,96,'Gateway',   null,  '#3b82f6')}
+  ${box(CX_H,cy,120,'HTTPRoute',hrSub,'#8b5cf6')}
+  ${pool(cyB,'Original InferencePool','old image','#3b82f6')}
+  ${pool(cyC,'Canary InferencePool',  'new image','#f59e0b')}
+  ${showB?`<text x="${H_RT+32}" y="${blueWY+4}" text-anchor="start" fill="#60a5fa" font-size="11" font-weight="600">${origPct}%</text>`:''}
+  ${showC?`<text x="${H_RT+32}" y="${canWY+4}"  text-anchor="start" fill="#fbbf24" font-size="11" font-weight="600">${canaryPct}%</text>`:''}
+  ${legend()}`;
+}
+
+// ─── Stage 5 phases ───────────────────────────────────────────────────────
+
+function svgS5p0() {
+  // Canary 100%, original rolling update
+  const cy=CY_S, cyB=CY_B, cyC=CY_C;
+  const dC=`M ${C_RT},${cy} L ${G_LT},${cy} L ${G_RT},${cy} L ${H_LT},${cy} L ${H_RT},${cy} L ${H_RT},${cyC} L ${P_LT},${cyC}`;
+  const bC=evenBegins(7,4), bCRes=evenBegins(4,4.8);
+  return `${defs()}
+  <path id="p5p0c" d="${dC}" fill="none" stroke="none"/>
+  ${seg(C_RT,cy,G_LT,cy,'ab',1.5,'#334155')}
+  ${seg(G_RT,cy,H_LT,cy,'ab',1.5,'#334155')}
+  ${poly([[H_RT,cy],[H_RT,cyC],[P_LT,cyC]],'aa','#334155',1.5)}
+  ${circs('p5p0c',4,'#fbbf24',bC)}
+  ${circsRev('p5p0c',4.8,'#4ade80',bCRes)}
+  ${box(75,  cy,100,'Client',   null,           '#475569')}
+  ${box(CX_G,cy,96, 'Gateway',  null,           '#3b82f6')}
+  ${box(CX_H,cy,120,'HTTPRoute','100% → canary','#8b5cf6')}
+  <rect x="${P_LT}" y="${cyB-POOL_H/2}" width="${PW}" height="${POOL_H}" rx="6"
+    fill="#0f172a" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="${CX_P}" y="${cyB-3}" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Original InferencePool</text>
+  <text x="${CX_P}" y="${cyB+13}" text-anchor="middle" fill="#f59e0b" font-size="9">rolling update in progress…</text>
+  ${pool(cyC,'Canary InferencePool','new image · 100% traffic','#f59e0b')}
+  ${legend()}`;
+}
+
+function svgS5p1() {
+  // Original updated, traffic rerouted, canary draining
+  const cy=CY_S, cyB=CY_B, cyC=CY_C;
+  const dB=`M ${C_RT},${cy} L ${G_LT},${cy} L ${G_RT},${cy} L ${H_LT},${cy} L ${H_RT},${cy} L ${H_RT},${cyB} L ${P_LT},${cyB}`;
+  const bB=evenBegins(7,4), bBRes=evenBegins(4,4.8);
+  return `${defs()}
+  <path id="p5p1b" d="${dB}" fill="none" stroke="none"/>
+  ${seg(C_RT,cy,G_LT,cy,'ab',1.5,'#334155')}
+  ${seg(G_RT,cy,H_LT,cy,'ab',1.5,'#334155')}
+  ${poly([[H_RT,cy],[H_RT,cyB],[P_LT,cyB]],'ag','#334155',1.5)}
+  ${circs('p5p1b',4,'#60a5fa',bB)}
+  ${circsRev('p5p1b',4.8,'#4ade80',bBRes)}
+  ${box(75,  cy,100,'Client',    null,             '#475569')}
+  ${box(CX_G,cy,96, 'Gateway',   null,             '#3b82f6')}
+  ${box(CX_H,cy,120,'HTTPRoute', '100% → original','#8b5cf6')}
+  ${pool(cyB,'Original InferencePool','new image · ready','#4ade80')}
+  <rect x="${P_LT}" y="${cyC-POOL_H/2}" width="${PW}" height="${POOL_H}" rx="6"
+    fill="#0f172a" stroke="#334155" stroke-width="1.5" opacity="0.4"/>
+  <text x="${CX_P}" y="${cyC-3}"  text-anchor="middle" fill="#475569" font-size="11" font-weight="600">Canary InferencePool</text>
+  <text x="${CX_P}" y="${cyC+13}" text-anchor="middle" fill="#475569" font-size="9">draining…</text>
+  ${legend()}
+  <text x="${CX_P}" y="${cyC+POOL_H/2+16}" text-anchor="middle" fill="#4ade80" font-size="10">✓ original updated — traffic rerouted</text>`;
+}
+
+function svgS5p2() {
+  const cy=CY_S;
+  const d=`M ${C_RT},${cy} L ${G_LT},${cy} L ${G_RT},${cy} L ${H_LT},${cy} L ${H_RT},${cy} L ${P_LT},${cy}`;
+  const bReq=evenBegins(6,4), bRes=evenBegins(4,4.8);
+  return `${defs()}
+  <path id="p5p2" d="${d}" fill="none" stroke="none"/>
+  ${reqLines(cy)}
+  ${circs('p5p2',4,'#60a5fa',bReq)}
+  ${circsRev('p5p2',4.8,'#4ade80',bRes)}
+  ${leftNodes(cy,'100% → original')}
+  ${pool(cy,'Original InferencePool','new image · canary deleted','#4ade80')}
+  ${legend()}
+  <text x="${CX_P}" y="${cy+POOL_H/2+16}" text-anchor="middle" fill="#4ade80" font-size="10">✓ Canary deleted — deployment complete</text>`;
+}
+
+const S5_FNS=[svgS5p0,svgS5p1,svgS5p2];
+const S5_LABELS=[
+  'Phase 1 of 3 — Original LLMISVC rolling update in progress',
+  'Phase 2 of 3 — Original updated; traffic rerouted back; canary draining',
+  'Phase 3 of 3 — Canary deleted; single pool serving new image',
+];
+
+// ─── Stage definitions ────────────────────────────────────────────────────
+let _w=10, s5Phase=0, s5Timer=null;
+
+const STAGES=[
+  {title:'Initial State',sub:'Single LLMInferenceService, 100% traffic',
+   desc:'A single LLMInferenceService (LLMISVC) is running. The controller automatically provisioned an InferencePool (the model pods) and an HTTPRoute pointing all traffic at it.',
+   bullets:['One LLMISVC — one InferencePool — one HTTPRoute','HTTPRoute sends 100% of requests to the original pool','No canary exists yet'],
+   hint:'Click Next to deploy the canary'},
+  {title:'Spinning Up the Canary',sub:'Second LLMISVC deployed, gateway ref removed',
+   desc:'A second LLMISVC is created with the new runtime image. Its gateway reference is patched to null so no second HTTPRoute is created. Traffic flows 100% through the original route. The canary pool warms up idle.',
+   bullets:['Canary LLMISVC deployed with new container image','Gateway ref patched to null → no second HTTPRoute created','Canary pool is warm but receives zero traffic','Original pool continues serving all requests unaffected'],
+   hint:'Click Next to mirror traffic'},
+  {title:'Mirroring Traffic',sub:'RequestMirror filter — canary responses discarded',
+   desc:"A RequestMirror filter is added to the HTTPRoute. Every request is duplicated: the original pool responds to the client as normal, and a shadow copy goes to the canary. The canary's response is silently discarded — clients never see it.",
+   bullets:['Every request is mirrored (Istio does not support partial mirroring)','Canary receives full inference load — plan cluster capacity accordingly','Canary responses are discarded; only the original pool replies to clients','Watch canary logs to confirm real requests are landing'],
+   hint:'Click Next to split traffic'},
+  {title:'Diverting Traffic',sub:'Weighted HTTPRoute split — use slider to adjust',
+   desc:'The mirror filter is removed and a weighted rule added to the HTTPRoute. Traffic is split proportionally. Increase canary weight gradually, observing latency and errors at each step.',
+   bullets:['Animated circles are proportional to the configured weight','Set weight to 0 for instant rollback','system_fingerprint in each response identifies which pool served it','Recommended steps: 10% → 25% → 50% → 90% → 100%'],
+   hint:'Adjust the slider to see traffic split',hasSlider:true},
+  {title:'Swap & Clean Up',sub:'Original LLMISVC patched, canary deleted',
+   desc:'Once the canary is stable at 100%, the original LLMISVC is patched with the new image. A rolling update keeps the old pod alive until the new one is ready. The custom route spec is removed and the canary deleted.',
+   bullets:['Original LLMISVC patched to new image — rolling update, old pod stays until new pod is ready','Custom route spec removed from HTTPRoute — returns to controller defaults','Canary LLMISVC deleted — its InferencePool removed','End state: one pool, one HTTPRoute, new image running'],
+   hint:'Select a phase to step through the sequence'},
+];
+
+// ─── State & render ───────────────────────────────────────────────────────
+let current=0;
+const TOTAL=5;
+
+function stopS5(){ if(s5Timer){clearInterval(s5Timer);s5Timer=null;} }
+
+function updateS5Buttons(){
+  [0,1,2].forEach(i=>{
+    const b=document.getElementById(`s5b${i}`);
+    if(b) b.className='phase-btn'+(i===s5Phase?' active':'');
+  });
+}
+
+function renderS5Phase(){
+  document.getElementById('diagram-svg').innerHTML=S5_FNS[s5Phase]();
+  document.getElementById('s5-label').textContent=S5_LABELS[s5Phase];
+  updateS5Buttons();
+}
+
+function setS5Phase(n){
+  stopS5(); s5Phase=n;
+  const svg=document.getElementById('diagram-svg');
+  svg.style.opacity='0';
+  setTimeout(()=>{ renderS5Phase(); svg.style.opacity='1'; },180);
+}
+
+function startS5(){
+  stopS5(); s5Phase=0;
+  document.getElementById('s5-btns').style.display='flex';
+  renderS5Phase();
+  s5Timer=setInterval(()=>{
+    s5Phase=(s5Phase+1)%3;
+    const svg=document.getElementById('diagram-svg');
+    svg.style.opacity='0';
+    setTimeout(()=>{ renderS5Phase(); svg.style.opacity='1'; },300);
+  },3500);
+}
+
+function render(){
+  stopS5();
+  document.getElementById('s5-btns').style.display='none';
+  document.getElementById('s5-label').textContent='';
+  const s=STAGES[current];
+  document.getElementById('timeline').innerHTML=STAGES.map((st,i)=>
+    `<div class="t-step ${i<current?'done':i===current?'active':''}" onclick="go(${i-current})">
+      <div class="t-dot">${i+1}</div><div class="t-label">${st.title}</div>
+    </div>`).join('');
+  document.getElementById('stageTitle').textContent=s.title;
+  document.getElementById('stageSub').textContent=s.sub;
+  document.getElementById('counter').textContent=`Stage ${current+1} of ${TOTAL}`;
+  const svg=document.getElementById('diagram-svg');
+  svg.style.opacity='1';
+  if(current===4){ startS5(); }
+  else { [svgStage1,svgStage2,svgStage3,svgStage4,null][current]&&(svg.innerHTML=[svgStage1,svgStage2,svgStage3,svgStage4][current]()); }
+  document.getElementById('desc').textContent=s.desc;
+  document.getElementById('bullets').innerHTML=s.bullets.map(b=>`<div class="bullet">${b}</div>`).join('');
+  document.getElementById('slider-wrap').style.display=s.hasSlider?'block':'none';
+  document.getElementById('btnPrev').disabled=current===0;
+  document.getElementById('btnNext').disabled=current===TOTAL-1;
+  document.getElementById('navHint').textContent=s.hint||'';
+}
+
+function go(delta){
+  const n=current+delta;
+  if(n<0||n>=TOTAL) return;
+  current=n; render();
+}
+
+function onWeightChange(val){
+  _w=parseInt(val);
+  document.getElementById('wBlue').textContent=`${100-_w}% original`;
+  document.getElementById('wCanary').textContent=`${_w}% canary`;
+  document.getElementById('wBar').style.width=`${_w}%`;
+  document.getElementById('diagram-svg').innerHTML=svgStage4(_w);
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown') go(1);
+  if(e.key==='ArrowLeft' ||e.key==='ArrowUp')   go(-1);
+});
+
+render();
+</script>
+</body>
+</html>
